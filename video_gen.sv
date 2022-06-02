@@ -13,22 +13,22 @@
 module video_gen
 (
     // video control signals
-    input  wire hres_t           h_count_i,                      // horizontal pixel counter
+    input  wire hres_t              h_count_i,                      // horizontal pixel counter
     input  wire logic               v_visible_i,                    // true if scanline is in visible range
     input  wire logic               end_of_line_i,                  // true on last cycle of line
     input  wire logic               end_of_frame_i,                 // true on last cycle end of frame
     // video memories
     output      logic               dispmem_sel_o,                  // display mem read select
-    output      disp_addr_t      dispmem_addr_o,                 // display mem word address out (16x64K)
-    input  wire disp_data_t      dispmem_data_i,                 // display mem word data in
+    output      disp_addr_t         dispmem_addr_o,                 // display mem word address out (16x64K)
+    input  wire disp_data_t         dispmem_data_i,                 // display mem word data in
     output      logic               fontmem_sel_o,                  // font mem read select
-    output      font_addr_t      fontmem_addr_o,                 // font mem word address out (16x5K)
-    input  wire font_data_t      fontmem_data_i,                 // font mem word data in
+    output      font_addr_t         fontmem_addr_o,                 // font mem word address out (16x5K)
+    input  wire font_data_t         fontmem_data_i,                 // font mem word data in
     // video generation control signals
     input  wire logic  [2:0]        pf_h_repeat_i,                  // horizontal pixel repeat (1x to 8x)
     input  wire logic  [2:0]        pf_v_repeat_i,                  // vertical pixel repeat (1x to 8x)
-    input  wire disp_addr_t      pf_line_len_i,                  // display mem word address out (16x64K)
-    output      color_t          pf_color_index_o,               // output pixel color value
+    input  wire disp_addr_t         pf_line_len_i,                  // display mem word address out (16x64K)
+    output      color_t             pf_color_index_o,               // output pixel color value
     // standard signals
     input  wire logic clk                                           // pixel clock
 );
@@ -62,20 +62,20 @@ logic [2:0]     pf_state, pf_state_next;            // playfield FSM fetch state
 
 logic           dispmem_sel, dispmem_sel_next;      // display mem select output
 always_comb     dispmem_sel_o = dispmem_sel;        // output to display mem select
-disp_addr_t  pf_disp_addr, pf_disp_addr_next;    // address to fetch display data
+disp_addr_t  pf_disp_addr, pf_disp_addr_next;       // address to fetch display data
 always_comb     dispmem_addr_o  = pf_disp_addr;     // output display mem addr
 
 logic           fontmem_sel, fontmem_sel_next;      // font mem select output
 always_comb     fontmem_sel_o = fontmem_sel;        // output to font mem select
-font_addr_t  pf_font_addr, pf_font_addr_next;    // font mem fetch display address
+font_addr_t  pf_font_addr, pf_font_addr_next;       // font mem fetch display address
 always_comb     fontmem_addr_o  = pf_font_addr;     // output font mem addr
 
-disp_addr_t  pf_line_start;                      // display mem address of current line
+disp_addr_t  pf_line_start;                         // display mem address of current line
 
 logic           pf_initial_buf, pf_initial_buf_next;// true on first buffer per scanline
 logic           pf_words_ready, pf_words_ready_next;// true if data_words full (8-pixels)
-disp_data_t  pf_disp_word, pf_disp_word_next;    // tile attributes and tile index
-font_data_t  pf_font_byte, pf_font_byte_next;    // 1st fetched display data word buffer
+disp_data_t  pf_disp_word, pf_disp_word_next;       // tile attributes and tile index
+font_data_t  pf_font_byte, pf_font_byte_next;       // 1st fetched display data word buffer
 
 logic           pf_pixels_buf_full;                 // true when pf_pixels needs filling
 logic [8*v::COLOR_W-1:0] pf_pixels_buf;             // 8 pixel buffer waiting for scan out
@@ -133,7 +133,7 @@ always_comb begin
         end
         FETCH_READ_DISP: begin
             pf_disp_word_next   = dispmem_data_i;           // save attribute+tile
-            pf_disp_addr_next   = pf_disp_addr + 1'b1;           // increment display address
+            pf_disp_addr_next   = pf_disp_addr + 1'b1;      // increment display address
             pf_state_next       = FETCH_ADDR_TILE;          // read tile bitmap words
         end
         FETCH_ADDR_TILE: begin
@@ -258,11 +258,11 @@ always_ff @(posedge clk) begin
     if (end_of_line_i) begin
         scanout         <= 1'b0;                                        // force scanout off
         pf_disp_addr    <= pf_line_start;                               // addr back to line start (for tile lines, or v repeat)
-        if (pf_v_count != '0) begin                                  // is line repeating?
+        if (pf_v_count != '0) begin                                     // is line repeating?
             pf_v_count      <= pf_v_count - 1'b1;                       // keep decrementing
         end else begin
             pf_v_count      <= pf_v_repeat_i;                           // reset v repeat
-            if (pf_tile_y == $bits(pf_tile_y)'(v::TILE_HEIGHT-1)) begin   // is bitmap mode or last line of tile cell?
+            if (pf_tile_y == $bits(pf_tile_y)'(v::TILE_HEIGHT-1)) begin // is bitmap mode or last line of tile cell?
                 pf_tile_y       <= 3'h0;                                // reset tile cell line
                 pf_line_start   <= pf_line_start + pf_line_len_i;       // calculate next line start address
             end else begin
