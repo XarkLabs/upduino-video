@@ -45,16 +45,16 @@ typedef enum logic [2:0] {
     FETCH_ADDR_DISP     =   3'h1,       // output display mem address
     FETCH_WAIT_DISP     =   3'h2,       // wait for display data memory
     FETCH_READ_DISP     =   3'h3,       // read font attributes+character from display mem
-    FETCH_ADDR_TILE     =   3'h4,       // output font mem address
-    FETCH_WAIT_TILE     =   3'h5,       // wait for font data memory
-    FETCH_READ_TILE     =   3'h6        // read font data
+    FETCH_ADDR_FONT     =   3'h4,       // output font mem address
+    FETCH_WAIT_FONT     =   3'h5,       // wait for font data memory
+    FETCH_READ_FONT     =   3'h6        // read font data
 } video_fetch_st;
 
 logic  [2:0]    pf_h_count;                         // current horizontal repeat countdown (1x to 8x)
 logic  [2:0]    pf_v_count;                         // current vertical repeat countdown (1x to 8x)
 
-logic  [$clog2(v::TILE_WIDTH)-1:0]   pf_tile_x;      // current column of tile cell
-logic  [$clog2(v::TILE_HEIGHT)-1:0]  pf_tile_y;      // current line of tile cell
+logic  [$clog2(v::FONT_WIDTH)-1:0]   pf_tile_x;      // current column of tile cell
+logic  [$clog2(v::FONT_HEIGHT)-1:0]  pf_tile_y;      // current line of tile cell
 
 // fetch fsm outputs
 // scanline generation (registered signals and "_next" combinatorally set signals)
@@ -70,27 +70,26 @@ always_comb     fontmem_sel_o = fontmem_sel;        // output to font mem select
 font_addr_t  pf_font_addr, pf_font_addr_next;       // font mem fetch display address
 always_comb     fontmem_addr_o  = pf_font_addr;     // output font mem addr
 
-disp_addr_t  pf_line_start;                         // display mem address of current line
+disp_addr_t     pf_line_start;                      // display mem address for start of current line
 
-logic           pf_initial_buf, pf_initial_buf_next;// true on first buffer per scanline
-logic           pf_words_ready, pf_words_ready_next;// true if data_words full (8-pixels)
-disp_data_t  pf_disp_word, pf_disp_word_next;       // tile attributes and tile index
-font_data_t  pf_font_byte, pf_font_byte_next;       // 1st fetched display data word buffer
+logic           pf_initial_buf, pf_initial_buf_next;// flag true on first buffer of line (initial buffer fill)
+logic           pf_words_ready, pf_words_ready_next;// strobe to signal data_words full (8-pixels ready)
+disp_data_t     pf_disp_word, pf_disp_word_next;    // tile attributes and tile index
+font_data_t     pf_font_byte, pf_font_byte_next;    // 1st fetched display data word buffer
 
-logic           pf_pixels_buf_full;                 // true when pf_pixels needs filling
+logic           pf_pixels_buf_full;                 // flag true when pf_pixels needs filling
 logic [8*v::COLOR_W-1:0] pf_pixels_buf;             // 8 pixel buffer waiting for scan out
 logic [8*v::COLOR_W-1:0] pf_pixels;                 // 8 pixels currently shifting to scan out
 
-logic           scanout;                            // scanout active
-logic           scanout_start;                      // scanout start strobe
-logic           scanout_end;                        // scanout stop strobe
+logic           scanout;                            // flag true when scanout active (pixels being output)
+logic           scanout_start;                      // strobe to signal scanout start
+logic           scanout_end;                        // strobe to signal scanout stop
 always_comb     scanout_start   = (h_count_i == H_SCANOUT_BEGIN) ? mem_fetch : 1'b0;
 always_comb     scanout_end     = (h_count_i == H_SCANOUT_END)   ? 1'b1      : 1'b0;
 
-logic           mem_fetch_h_start;
-logic           mem_fetch_h_end;
-logic           mem_fetch;                          // true when fetching display data
-logic           mem_fetch_next;
+logic           mem_fetch, mem_fetch_next;          // flag true when line is fetching display data
+logic           mem_fetch_h_start;                  // strobe to signal start display line mem fetch
+logic           mem_fetch_h_end;                    // strobe to signal end display line mem fetch
 always_comb     mem_fetch_h_start = ($bits(h_count_i)'(H_MEM_BEGIN) == h_count_i);
 always_comb     mem_fetch_h_end = ($bits(h_count_i)'(H_MEM_END) == h_count_i);
 always_comb     mem_fetch_next = (!mem_fetch ? mem_fetch_h_start : !mem_fetch_h_end) && v_visible_i;
@@ -127,24 +126,24 @@ always_comb begin
             end
         end
         FETCH_WAIT_DISP: begin
-            pf_words_ready_next = !pf_initial_buf;          // set buffer ready
-            pf_initial_buf_next = 1'b0;
+            pf_words_ready_next = !pf_initial_buf;          // set buffer ready (skip initial buffer)
+            pf_initial_buf_next = 1'b0;                     // clear initial buffer flag
             pf_state_next       = FETCH_READ_DISP;
         end
         FETCH_READ_DISP: begin
             pf_disp_word_next   = dispmem_data_i;           // save attribute+tile
             pf_disp_addr_next   = pf_disp_addr + 1'b1;      // increment display address
-            pf_state_next       = FETCH_ADDR_TILE;          // read tile bitmap words
+            pf_state_next       = FETCH_ADDR_FONT;          // read tile bitmap words
         end
-        FETCH_ADDR_TILE: begin
+        FETCH_ADDR_FONT: begin
             fontmem_sel_next    = 1'b1;                     // select font memory
-            pf_font_addr_next   = { pf_disp_word[7:0], pf_tile_y[2:0] };
-            pf_state_next       = FETCH_WAIT_TILE;
+            pf_font_addr_next   = ($bits(pf_font_addr_next)'(pf_disp_word[7:0]) << $bits(pf_tile_y)) | $bits(pf_font_addr_next)'(pf_tile_y);
+            pf_state_next       = FETCH_WAIT_FONT;
         end
-        FETCH_WAIT_TILE: begin
-            pf_state_next       = FETCH_READ_TILE;
+        FETCH_WAIT_FONT: begin
+            pf_state_next       = FETCH_READ_FONT;
         end
-        FETCH_READ_TILE: begin
+        FETCH_READ_FONT: begin
             pf_font_byte_next   = fontmem_data_i;           // read font data
             pf_state_next       = FETCH_ADDR_DISP;
         end
@@ -154,21 +153,23 @@ always_comb begin
     endcase
 end
 
+// output current pixel value
 assign  pf_color_index_o    = pf_pixels[7*v::COLOR_W+:v::COLOR_W];
 
+// initialize signal defaults
 initial begin
-    dispmem_sel_o       = 1'b0;
-    dispmem_addr_o      = '0;
-    fontmem_sel_o       = 1'b0;
-    fontmem_addr_o      = '0;
-
     scanout             = 1'b0;
     mem_fetch           = 1'b0;
 
     pf_state            = FETCH_IDLE;
-    pf_disp_addr        = '0;              // current display address during scan
-    pf_disp_word        = '0;              // word with tile attributes and index
-    pf_font_byte        = '0;              // buffers for unexpanded display data
+    pf_h_count          = '0;
+    pf_v_count          = '0;
+    pf_tile_x           = '0;
+    pf_tile_y           = '0;
+    pf_line_start       = '0;
+    pf_disp_addr        = '0;
+    pf_disp_word        = '0;
+    pf_font_byte        = '0;
 
     pf_initial_buf      = 1'b0;
     pf_words_ready      = 1'b0;
@@ -176,9 +177,9 @@ initial begin
     dispmem_sel         = 1'b0;
     fontmem_sel         = 1'b0;
 
-    pf_pixels_buf_full  = 1'b0;             // flag when pf_pixels_buf is empty (continue fetching)
-    pf_pixels_buf       = '0;               // next 8 pixels to scan out
-    pf_pixels           = '0;               // 8 pixels currently scanning out
+    pf_pixels_buf_full  = 1'b0;
+    pf_pixels_buf       = '0;
+    pf_pixels           = '0;
 end
 
 always_ff @(posedge clk) begin
@@ -221,7 +222,7 @@ always_ff @(posedge clk) begin
             pf_h_count              <= pf_h_repeat_i;
             pf_tile_x               <= pf_tile_x + 1'b1;
 
-            if (pf_tile_x == $bits(pf_tile_x)'(v::TILE_WIDTH-1)) begin        // if last column of font tile
+            if (pf_tile_x == $bits(pf_tile_x)'(v::FONT_WIDTH-1)) begin  // if last column of font tile
                 pf_pixels_buf_full <= 1'b0;
                 pf_pixels   <= pf_pixels_buf;       // next 8 pixels from buffer
             end else begin
@@ -262,8 +263,8 @@ always_ff @(posedge clk) begin
             pf_v_count      <= pf_v_count - 1'b1;                       // keep decrementing
         end else begin
             pf_v_count      <= pf_v_repeat_i;                           // reset v repeat
-            if (pf_tile_y == $bits(pf_tile_y)'(v::TILE_HEIGHT-1)) begin // is bitmap mode or last line of tile cell?
-                pf_tile_y       <= 3'h0;                                // reset tile cell line
+            if (pf_tile_y == $bits(pf_tile_y)'(v::FONT_HEIGHT-1)) begin // is bitmap mode or last line of tile cell?
+                pf_tile_y       <= $bits(pf_tile_y)'(0);                // reset tile cell line
                 pf_line_start   <= pf_line_start + pf_line_len_i;       // calculate next line start address
             end else begin
                 pf_tile_y       <= pf_tile_y + 1;                       // next line of tile cell

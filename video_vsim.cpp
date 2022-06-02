@@ -13,7 +13,7 @@
 #include "Vvideo_top.h"
 
 #define VM_TRACE 1
-#define USE_FST 1               // FST format saves a lot of disk space vs older VCD
+#define USE_FST 1 // FST format saves a lot of disk space vs older VCD
 #if USE_FST
 #include "verilated_fst_c.h" // for VM_TRACE
 #else
@@ -25,6 +25,7 @@
 // Current simulation time (64-bit unsigned)
 vluint64_t main_time = 0;
 
+int frame_num;
 volatile bool done;
 
 static FILE *logfile;
@@ -125,12 +126,38 @@ int main(int argc, char **argv)
 #if VM_TRACE
         tfp->dump(main_time);
 #endif
-        main_time++;
+        static bool init_gpio_46;
+        static bool prev_gpio_46;
+        static vluint64_t last_frame_time;
 
-        if (main_time >= 10000000ull)
+        if (!main_time)
+        {
+            init_gpio_46 = top->gpio_46;
+        }
+        else if (prev_gpio_46 != top->gpio_46 && top->gpio_46 == init_gpio_46)
+        {
+            if (frame_num)
+            {
+                printf("Frame %d completed (@ %llu clock cycles, %llu cycles for frame)\n", frame_num, main_time / 2, main_time / 2 - last_frame_time);
+            }
+            last_frame_time = main_time / 2;
+            frame_num++;
+
+            // exit after > 5 frames
+            if (frame_num > 5)
+            {
+                done = true;
+            }
+        }
+        prev_gpio_46 = top->gpio_46;
+
+        // failsafe exit
+        if (main_time >= (uint64_t)5000000)
         {
             done = true;
         }
+
+        main_time++;
     }
 
     top->final();

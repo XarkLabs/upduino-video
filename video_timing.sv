@@ -21,9 +21,9 @@
 
 module video_timing (
     // video registers and control
-    output      hres_t       h_count_o,              // horizontal video counter
+    output      hres_t          h_count_o,              // horizontal video counter
     output      logic           v_visible_o,            // visible vertical line
-    output      logic           visible_o,              // pixel is vislble
+    output      logic           visible_o,              // pixel is visible
     output      logic           end_of_line_o,          // strobe for end of line (h_count resets)
     output      logic           end_of_frame_o,         // strobe for end of frame (v_count resets)
     output      logic           vsync_o,                // vertical sync output (polarity depends on video mode)
@@ -32,7 +32,6 @@ module video_timing (
 );
 
 // NOTE: Both H & V states so both can start at 0
-
 typedef enum logic [1:0] {
     H_STATE_PRE_SYNC  = 2'b00,    // aka front porch
     H_STATE_SYNC      = 2'b01,
@@ -48,50 +47,36 @@ typedef enum logic [1:0] {
 } vertical_st;
 
 // sync generation signals (and combinatorial logic "next" versions)
+logic [1:0]     h_state, h_state_next;
+hres_t          h_count, h_count_next;
+hres_t          h_count_match_value;
 
-hres_t       h_count;
-hres_t       h_count_next;
+logic [1:0]     v_state, v_state_next;
+vres_t          v_count, v_count_next;
+vres_t          v_count_match_value;
 
-vres_t       v_count;
-vres_t       v_count_next;
-vres_t       v_count_match_value;
+logic           hsync, hsync_next;
+logic           vsync, vsync_next;
+logic           dv_de, dv_de_next;
 
-logic [1:0]     h_state;
-logic [1:0]     h_state_next;
-hres_t       h_count_match_value;
+logic           end_of_line, end_of_line_next;
+logic           end_of_frame, end_of_frame_next;
 
-logic [1:0]     v_state;
-logic [1:0]     v_state_next;
-
-logic           end_of_line;
-logic           end_of_line_next;
-
-logic           end_of_frame;
-logic           end_of_frame_next;
-
-logic           hsync;
-logic           hsync_next;
-
-logic           vsync;
-logic           vsync_next;
-
-logic           dv_de;
-logic           dv_de_next;
-
-always_comb h_count_o        = h_count;
-always_comb v_visible_o      = (v_state == V_STATE_VISIBLE);
-always_comb visible_o        = dv_de;
-always_comb end_of_line_o    = end_of_line;
-always_comb end_of_frame_o   = end_of_frame;
-always_comb hsync_o          = hsync;
-always_comb vsync_o          = vsync;
+// outputs
+always_comb     h_count_o        = h_count;
+always_comb     v_visible_o      = (v_state == V_STATE_VISIBLE);
+always_comb     visible_o        = dv_de;
+always_comb     end_of_line_o    = end_of_line;
+always_comb     end_of_frame_o   = end_of_frame;
+always_comb     hsync_o          = hsync;
+always_comb     vsync_o          = vsync;
 
 // video sync generation via state machine (Thanks tnt & drr - a much more efficient method!)
-always_comb    end_of_line_next        = (h_state == H_STATE_VISIBLE) && (h_state_next == H_STATE_PRE_SYNC);
-always_comb    end_of_frame_next       = (v_state == V_STATE_POST_SYNC) && (v_state_next == V_STATE_VISIBLE);
-always_comb    hsync_next              = (h_state == H_STATE_SYNC) ? v::H_SYNC_POLARITY : ~v::H_SYNC_POLARITY;
-always_comb    vsync_next              = (v_state == V_STATE_SYNC) ? v::V_SYNC_POLARITY : ~v::V_SYNC_POLARITY;
-always_comb    dv_de_next              = (v_state == V_STATE_VISIBLE) && (h_state_next == H_STATE_VISIBLE);
+always_comb     end_of_line_next = (h_state == H_STATE_VISIBLE) && (h_state_next == H_STATE_PRE_SYNC);
+always_comb     end_of_frame_next= (v_state == V_STATE_POST_SYNC) && (v_state_next == V_STATE_VISIBLE);
+always_comb     hsync_next       = (h_state == H_STATE_SYNC) ? v::H_SYNC_POLARITY : ~v::H_SYNC_POLARITY;
+always_comb     vsync_next       = (v_state == V_STATE_SYNC) ? v::V_SYNC_POLARITY : ~v::V_SYNC_POLARITY;
+always_comb     dv_de_next       = (v_state == V_STATE_VISIBLE) && (h_state_next == H_STATE_VISIBLE);
 
 // combinational block for video counters
 always_comb begin

@@ -14,35 +14,34 @@
 
 `include "video_package.svh"
 
-module video_main #(
-    parameter H_REPEAT = 2,     // 1x to 8x
-    parameter V_REPEAT = 3      // 1x to 8x
-) (
+module video_main(
     // outputs
     output      logic           vga_hsync_o,        // VGA horizontal sync out
     output      logic           vga_vsync_o,        // VGA vertical sync out
     output      logic           vga_red_o,          // red LED output
     output      logic           vga_green_o,        // green LED output
     output      logic           vga_blue_o,         // blue LED output
-    // inputs
+
+    // control signals
+    output      logic           end_of_frame_o,     // strobe for end of frame
+    input  wire logic [2:0]     pf_h_repeat_i,      // 0-7 for 1x to 8x H repeat
+    input  wire logic [2:0]     pf_v_repeat_i,      // 0-7 for 1x to 8x V repeat
+    input  wire disp_addr_t     pf_line_len_i,      // words added each display line
+    input  wire logic           display_wr_en_i,    // display mem write enable
+    input  wire disp_addr_t     display_wr_addr_i,  // display mem write address
+    input  wire disp_data_t     display_wr_data_i,  // display mem write data
+    // standard inputs
     input  wire logic           clk                 // clock for module input
 );
 
-// simple test to write to display memory
-video_test video_test(
-    .eof_i(end_of_frame),
-    .wr_en_o(display_wr_en),
-    .wr_addr_o(display_wr_addr),
-    .wr_data_o(display_wr_data),
-    .clk(clk)
-);
-
 // video timing generation
-hres_t       h_count;
+hres_t          h_count;
 logic           v_visible;
 logic           visible;
 logic           end_of_line;
 logic           end_of_frame;
+
+assign          end_of_frame_o  = end_of_frame;
 
 video_timing video_timing(
     .h_count_o(h_count),
@@ -52,13 +51,9 @@ video_timing video_timing(
     .end_of_frame_o(end_of_frame),
     .vsync_o(vga_vsync_o),
     .hsync_o(vga_hsync_o),
+
     .clk(clk)
 );
-
-// video display parameters (hard-coded)
-logic [2:0]             pf_h_repeat = 3'(H_REPEAT-1);
-logic [2:0]             pf_v_repeat = 3'(V_REPEAT-1);
-disp_addr_t          pf_line_len = ((v::VISIBLE_WIDTH + v::TILE_WIDTH - 1) / H_REPEAT) / v::TILE_WIDTH;
 
 // video display generation
 always_comb vga_red_o   = visible ? pf_color_out[v::COLOR_W-(1*v::COLOR_W/3)+:(v::COLOR_W/3)] : '0;
@@ -78,21 +73,17 @@ video_gen video_gen(
     .fontmem_sel_o(font_rd_en),
     .fontmem_addr_o(font_rd_addr),
     .fontmem_data_i(font_rd_data),
-    .pf_h_repeat_i(pf_h_repeat),
-    .pf_v_repeat_i(pf_v_repeat),
-    .pf_line_len_i(pf_line_len),
+    .pf_h_repeat_i(pf_h_repeat_i),
+    .pf_v_repeat_i(pf_v_repeat_i),
+    .pf_line_len_i(pf_line_len_i),
     .pf_color_index_o(pf_color_out),
     .clk(clk)
 );
 
 // display memory
 logic           display_rd_en;
-disp_addr_t  display_rd_addr;
-disp_data_t  display_rd_data;
-
-logic           display_wr_en;
-disp_addr_t  display_wr_addr;
-disp_data_t  display_wr_data;
+disp_addr_t     display_rd_addr;
+disp_data_t     display_rd_data;
 
 memory #(
     .ADDR_W(v::DISPADDR_W),
@@ -102,21 +93,21 @@ memory #(
     .rd_address_i(display_rd_addr),
     .rd_data_o(display_rd_data),
     .rd_clk(clk),
-    .wr_en_i(display_wr_en),
-    .wr_address_i(display_wr_addr),
-    .wr_data_i(display_wr_data),
+    .wr_en_i(display_wr_en_i),
+    .wr_address_i(display_wr_addr_i),
+    .wr_data_i(display_wr_data_i),
     .wr_clk(clk)
 );
 
 
 // font memory (read only)
 logic           font_rd_en;
-font_addr_t  font_rd_addr;
-font_data_t  font_rd_data;
+font_addr_t     font_rd_addr;
+font_data_t     font_rd_data;
 
 memory #(
-    .MEM_FILE("osifont_8x8.memb"),      // Ohio-Scientific Challenger font
-//    .MEM_FILE("hexfont_8x8.memb"),    // hex number font (debug)
+//    .MEM_FILE("hexfont_8x8.memb"),                                            // hex number font (debug)
+    .MEM_FILE(v::FONT_HEIGHT <= 8 ? "osifont_8x8.memb" : "STfont_8x16.memb"),   // OSI C1P or Atari ST font
     .ADDR_W(v::FONTADDR_W),
     .DATA_W(v::FONTDATA_W)
 ) font (

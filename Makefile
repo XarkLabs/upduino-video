@@ -50,8 +50,8 @@ PACKAGE := sg48
 # Verilog source directories
 VPATH := $(SRCDIR)
 
-# Verilog source files for design (with TOP module first and no TBTOP)
-SRC := $(SRCDIR)/$(TOP).sv $(filter-out $(SRCDIR)/$(TBTOP).sv,$(filter-out $(SRCDIR)/$(TOP).sv,$(wildcard $(SRCDIR)/*.sv)))
+# Verilog source files for design (with no TOP or TBTOP module)
+SRC := $(filter-out $(SRCDIR)/$(TBTOP).sv,$(filter-out $(SRCDIR)/$(TOP).sv,$(wildcard $(SRCDIR)/*.sv)))
 
 # Verilog include files for design
 INC := $(wildcard $(SRCDIR)/*.svh)
@@ -73,9 +73,7 @@ endif
 
 # Yosys synthesis options
 # ("ultraplus" device, enable DSP inferrence and explicitly set top module name)
-YOSYS_SYNTH_OPTS := -device u -dsp -top $(TOP)
-# NOTE: Options that can often produce a more "optimal" size/speed for design, but slower:
-#       YOSYS_SYNTH_ARGS := -device u -dsp -abc9 -top $(TOP)
+YOSYS_SYNTH_ARGS := -device u -dsp -abc9 -top $(TOP)
 
 # Invokes yosys-config to find the proper path to the iCE40 simulation library
 TECH_LIB := $(shell $(YOSYS_CONFIG) --datdir/ice40/cells_sim.v)
@@ -126,7 +124,7 @@ info:
 	@echo "    make clean      - clean most files that can be rebuilt"
 
 # defult target is to make FPGA bitstream for design
-all: isim bin
+all: isim vsim bin
 
 # synthesize FPGA bitstream for design
 bin: $(OUTDIR)/$(OUTNAME).bin
@@ -138,22 +136,22 @@ prog: $(OUTDIR)/$(OUTNAME).bin
 	$(ICEPROG) -d i:0x0403:0x6014 $(OUTDIR)/$(OUTNAME).bin
 
 # run Yosys with "noflatten", which will produce a resource count per module
-count: $(SRC) $(INC) $(FONTFILES) $(MAKEFILE_LIST)
+count: $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(FONTFILES) $(MAKEFILE_LIST)
 	@echo === Couting Design Resources Used ===
 	@mkdir -p $(LOGS)
-	$(YOSYS) -l $(LOGS)/$(OUTNAME)_yosys_count.log -w ".*" -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRC) $(FLOW3) ; synth_ice40 $(YOSYS_SYNTH_ARGS) -noflatten'
+	$(YOSYS) -l $(LOGS)/$(OUTNAME)_yosys_count.log -w ".*" -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) $(FLOW3) ; synth_ice40 $(YOSYS_SYNTH_ARGS) -noflatten'
 	@sed -n '/Printing statistics/,/Executing CHECK pass/p' $(LOGS)/$(OUTNAME)_yosys_count.log | sed '$$d'
 	@echo === See $(LOGS)/$(OUTNAME)_yosys_count.log for resource use details ===
 
 # use Icarus Verilog to build and run simulation executable
-isim: $(OUTDIR)/$(TBOUTNAME) $(TBTOP).sv $(SRC) $(MAKEFILE_LIST)
-	@echo === Simulation files built, use \"make irun\" to run ===
+isim: $(OUTDIR)/$(TBOUTNAME) $(SRCDIR)/$(TBTOP).sv $(SRC) $(MAKEFILE_LIST)
+	@echo === Icarus Verilog files built, use \"make irun\" to run ===
 
 # use Icarus Verilog to run simulation executable
 irun: $(OUTDIR)/$(TBOUTNAME) $(MAKEFILE_LIST)
 	@echo === Running simulation ===
 	$(VVP) $(OUTDIR)/$(TBOUTNAME) -fst
-	@echo === Simulation done, use "gtkwave logs/$(TBTOP).fst" to view waveforms ===
+	@echo === Icarus Verilog simulation done, use "gtkwave logs/$(TBTOP).fst" to view waveforms ===
 
 # build native simulation executable
 vsim: obj_dir/V$(VTOP) $(MAKEFILE_LIST)
@@ -173,25 +171,27 @@ $(OUTDIR)/$(TBOUTNAME): $(TBTOP).sv $(SRC) $(MAKEFILE_LIST)
 	$(IVERILOG) $(IVERILOG_ARGS) $(DEFINES) -o $@ $(TBTOP).sv $(SRC)
 
 # use Verilator to build native simulation executable
-obj_dir/V$(VTOP): $(CSRC) $(INC) $(SRC) $(MAKEFILE_LIST)
-	$(VERILATOR) $(VERILATOR_ARGS) --cc --exe --trace  $(DEFINES) -DEXT_CLK $(CFLAGS) $(LDFLAGS) --top-module $(VTOP) $(TECH_LIB) $(SRC) $(CSRC)
+obj_dir/V$(VTOP): $(CSRC) $(INC) $(SRCDIR)/$(TOP).sv $(SRC) $(MAKEFILE_LIST)
+	$(VERILATOR) $(VERILATOR_ARGS) --cc --exe --trace  $(DEFINES) -DEXT_CLK $(CFLAGS) $(LDFLAGS) --top-module $(VTOP) $(TECH_LIB) $(SRCDIR)/$(TOP).sv $(SRC) $(CSRC)
 	cd obj_dir && make -f V$(VTOP).mk
 
 # synthesize SystemVerilog and create json description
-$(OUTDIR)/$(OUTNAME).json: $(SRC) $(INC) $(MAKEFILE_LIST)
+$(OUTDIR)/$(OUTNAME).json: $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(MAKEFILE_LIST)
 	@echo === Synthesizing design ===
 	@rm -f $@
 	@mkdir -p $(OUTDIR)
 	@mkdir -p $(LOGS)
-	$(VERILATOR) $(VERILATOR_ARGS) --lint-only $(DEFINES) --top-module $(TOP) $(TECH_LIB) $(SRC) 2>&1 | tee $(LOGS)/$(OUTNAME)_verilator.log
-	$(YOSYS) -l $(LOGS)/$(OUTNAME)_yosys.log -w ".*" -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRC) $(FLOW3) ; synth_ice40 $(YOSYS_SYNTH_ARGS) -json $@'
+	$(VERILATOR) $(VERILATOR_ARGS) --lint-only $(DEFINES) --top-module $(TOP) $(TECH_LIB) $(SRCDIR)/$(TOP).sv $(SRC) 2>&1 | tee $(LOGS)/$(OUTNAME)_verilator.log
+	$(YOSYS) -l $(LOGS)/$(OUTNAME)_yosys.log -w ".*" -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) $(FLOW3) ; synth_ice40 $(YOSYS_SYNTH_ARGS) -json $@'
 
 # make ASCII bitstream from JSON description and device parameters
-$(OUTDIR)/$(OUTNAME).asc: $(OUTDIR)/$(OUTNAME).json $(PIN_DEF) $(MAKEFILE_LIST)
+$(OUTDIR)/$(OUTNAME).bin: $(OUTDIR)/$(OUTNAME).json $(PIN_DEF) $(MAKEFILE_LIST)
 	@rm -f $@
 	@mkdir -p $(LOGS)
 	@mkdir -p $(OUTDIR)
-	$(NEXTPNR) -l $(LOGS)/$(OUTNAME)_nextpnr.log -q $(NEXTPNR_ARGS) --$(DEVICE) --package $(PACKAGE) --json $< --pcf $(PIN_DEF) --asc $@
+	$(NEXTPNR) -l $(LOGS)/$(OUTNAME)_nextpnr.log -q $(NEXTPNR_ARGS) --$(DEVICE) --package $(PACKAGE) --json $< --pcf $(PIN_DEF) --asc $(OUTDIR)/$(OUTNAME).asc
+	$(ICEPACK) $(OUTDIR)/$(OUTNAME).asc $@
+	@rm $(OUTDIR)/$(OUTNAME).asc
 	@echo === Synthesis stats for $(OUTNAME) on $(DEVICE) === | tee $(LOGS)/$(OUTNAME)_stats.txt
 	@-tabbyadm version | grep "Package" | tee -a $(LOGS)/$(OUTNAME)_stats.txt
 	@$(YOSYS) -V 2>&1 | tee -a $(LOGS)/$(OUTNAME)_stats.txt
@@ -199,11 +199,6 @@ $(OUTDIR)/$(OUTNAME).asc: $(OUTDIR)/$(OUTNAME).json $(PIN_DEF) $(MAKEFILE_LIST)
 	@sed -n '/Device utilisation/,/Info: Placed/p' $(LOGS)/$(OUTNAME)_nextpnr.log | sed '$$d' | grep -v ":     0/" | tee -a $(LOGS)/$(OUTNAME)_stats.txt
 	@grep "Max frequency" $(LOGS)/$(OUTNAME)_nextpnr.log | tail -1 | tee -a $(LOGS)/$(OUTNAME)_stats.txt
 	@echo
-
-# make binary bitstream from ASCII bitstream
-$(OUTDIR)/$(OUTNAME).bin: $(OUTDIR)/$(OUTNAME).asc $(MAKEFILE_LIST)
-	@rm -f $@
-	$(ICEPACK) $< $@
 
 # delete all targets that will be re-generated
 clean:
@@ -213,4 +208,4 @@ clean:
 .SECONDARY:
 
 # inform make about "phony" convenience targets
-.PHONY: info all bin prog lint isim irun count clean
+.PHONY: all bin prog isim irun vsim vrun count clean

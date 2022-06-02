@@ -16,7 +16,7 @@
 // "brief" package name (as Yosys doesn't support wildcard imports so lots of "v::")
 package v;
 
-`ifdef MODE_640x480                        // 25.175 MHz (requested), 25.125 MHz (achieved)
+`ifdef MODE_640x480                     // 25.175 MHz (requested), 25.125 MHz (achieved)
 `elsif MODE_848x480                     // 33.750 MHz (requested), 33.750 MHz (achieved)
 `elsif MODE_800x600                     // 40.000 MHz (requested), 39.750 MHz (achieved) [tight timing]
 `else
@@ -69,19 +69,6 @@ localparam H_SYNC_POLARITY   = 1'b1;        // H sync pulse active level
 localparam V_SYNC_POLARITY   = 1'b1;        // V sync pulse active level
 `endif
 
-// calculated video mode parametereters
-localparam TOTAL_WIDTH       = H_FRONT_PORCH + H_SYNC_PULSE + H_BACK_PORCH + VISIBLE_WIDTH;
-localparam TOTAL_HEIGHT      = V_FRONT_PORCH + V_SYNC_PULSE + V_BACK_PORCH + VISIBLE_HEIGHT;
-localparam OFFSCREEN_WIDTH   = TOTAL_WIDTH - VISIBLE_WIDTH;
-localparam OFFSCREEN_HEIGHT  = TOTAL_HEIGHT - VISIBLE_HEIGHT;
-
-// tile related constants
-localparam TILE_WIDTH        = 8;                               // 8 pixel wide tiles
-localparam TILE_HEIGHT       = 8;                               // 8 pixel high tiles
-localparam TILES_WIDE        = (VISIBLE_WIDTH/TILE_WIDTH);      // default tiled mode width
-localparam TILES_HIGH        = (VISIBLE_HEIGHT/TILE_HEIGHT);    // default tiled mode height
-
-
 // Lattice/SiliconBlue PLL "magic numbers" to derive pixel clock from 12Mhz oscillator (from "icepll" utility)
 `ifdef    MODE_640x480  // 25.175 MHz (requested), 25.125 MHz (achieved)
 localparam PCLK_HZ     =    25_125_000;
@@ -100,21 +87,32 @@ localparam PLL_DIVF    =    7'b0110100;     // DIVF = 52
 localparam PLL_DIVQ    =    3'b100;         // DIVQ =  4
 `endif
 
+// calculated video mode parameters
+localparam TOTAL_WIDTH       = H_FRONT_PORCH + H_SYNC_PULSE + H_BACK_PORCH + VISIBLE_WIDTH;
+localparam TOTAL_HEIGHT      = V_FRONT_PORCH + V_SYNC_PULSE + V_BACK_PORCH + VISIBLE_HEIGHT;
+localparam OFFSCREEN_WIDTH   = TOTAL_WIDTH - VISIBLE_WIDTH;
+localparam OFFSCREEN_HEIGHT  = TOTAL_HEIGHT - VISIBLE_HEIGHT;
+
+// tile related constants
+localparam FONT_WIDTH        = 8;                               // 8 pixel wide tiles (byte wide font)
+localparam FONT_HEIGHT       = 8;                               // can be 8 or 16 pixel high font
+localparam CHARS_WIDE        = (VISIBLE_WIDTH/FONT_WIDTH);      // default tiled mode width
+localparam CHARS_HIGH        = (VISIBLE_HEIGHT/FONT_HEIGHT);    // default tiled mode height
+
 localparam DISPADDR_W       = 12;               // address bits for display mem
 localparam DISPDATA_W       = 16;               // 16-bit
-localparam FONTADDR_W       = $clog2(256*TILE_HEIGHT); // address bits for font mem
+localparam FONTADDR_W       = $clog2(256*FONT_HEIGHT); // address bits for font mem
 localparam FONTDATA_W       = 8;                // bits for font memory
 localparam DISP_FORECOLOR   = 8;                // rightmost bit for forecolor
 localparam DISP_BACKCOLOR   = 12;               // rightmost bit for backcolor
 localparam COLOR_W          = 3;                // bits for color (R, G, B)
 
-
 /* verilator lint_on UNUSED */
 
 endpackage
 
-// NOTE: These are needed outside of package for by Icarus Verilog (limitation
-// of SystemVerilog support)
+// NOTE: These typedefs are needed outside of package for by Icarus Verilog (a limitation
+// of its SystemVerilog support)
 typedef logic [$clog2(v::TOTAL_WIDTH)-1:0]     hres_t;         // horizontal coordinate type
 typedef logic [$clog2(v::TOTAL_HEIGHT)-1:0]    vres_t;         // vertical coordinate type
 typedef logic [v::FONTADDR_W-1:0]              font_addr_t;    // font memory address type

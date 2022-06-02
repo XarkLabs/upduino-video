@@ -24,7 +24,7 @@ module memory #(
 );
 
 // infer memory block
-logic [DATA_W-1:0]  mem[2**ADDR_W];
+logic [DATA_W-1:0]  mem[0:2**ADDR_W-1];
 
 initial begin
     if (MEM_FILE != "") begin
