@@ -53,8 +53,8 @@ typedef enum logic [2:0] {
 logic  [2:0]    pf_h_count;                         // current horizontal repeat countdown (1x to 8x)
 logic  [2:0]    pf_v_count;                         // current vertical repeat countdown (1x to 8x)
 
-logic  [$clog2(v::FONT_WIDTH)-1:0]   pf_tile_x;      // current column of tile cell
-logic  [$clog2(v::FONT_HEIGHT)-1:0]  pf_tile_y;      // current line of tile cell
+logic  [$clog2(v::FONT_WIDTH)-1:0]   pf_tile_x;     // current column of tile cell
+logic  [$clog2(v::FONT_HEIGHT)-1:0]  pf_tile_y;     // current line of tile cell
 
 // fetch fsm outputs
 // scanline generation (registered signals and "_next" combinatorally set signals)
@@ -198,11 +198,11 @@ always_ff @(posedge clk) begin
     pf_words_ready  <= pf_words_ready_next;
 
 
-    // have display words been fetched?
+    // if display data has been fetched, format into pixel buffer
     if (pf_words_ready) begin
         pf_pixels_buf_full <= 1'b1;     // mark buffer full
 
-        // expand font byte into 8 pixels of forecolor/backcolor (with v::COLOR_B bits per pixel)
+        // expand font byte into 8 pixels of forecolor/backcolor (with v::COLOR_W bits per pixel)
         pf_pixels_buf  <= {
             pf_font_byte[7] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
             pf_font_byte[6] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
@@ -214,6 +214,7 @@ always_ff @(posedge clk) begin
             pf_font_byte[0] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W] };
     end
 
+    // if scanning out pixels to the display shift or reload from pixel buffer
     if (scanout) begin
         // shift-in next pixel
         if (pf_h_count != '0) begin

@@ -3,7 +3,7 @@
 // vim: set et ts=4 sw=4
 //
 // Simulation "testbench" for video design.  This "pretends" to be the FPGA
-// hardware by generating a clock input and monitoring the LED outputs.
+// hardware by generating a clock input and monitoring outputs.
 //
 // See top-level LICENSE file for license information. (Hint: MIT-0)
 //

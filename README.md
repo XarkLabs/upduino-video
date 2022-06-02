@@ -9,10 +9,12 @@ This example is MIT-0 licensed.  This means you are pretty much free to do as
 you wish with it, including putting your name on it, applying a different
 license, modifying it and/or putting it in your own project.
 
-This project supports 640x480, 848x480 (wide screen 480p) and 800x600, with an
-8x8 character set and 1x to 8x pixel repeat.  Shown below is 40x20 text (640x480
-with H 2x and V 3x).  There is an included "hex" font (showing character number
-in hex) and a "retro" Ohio Scientific font with graphic characters (as shown).
+This project supports 640x480, 848x480 (wide screen 480p) and 800x600 VGA
+modes, with an 8x8 or 8x16 character set and a 1x to 8x pixel repeat.
+Shown below is 40x20 text (640x480 with H 2x and V 3x repeat).  There are three
+included example font files, a "hexidecimal" font (showing character number
+in hex for debugging), a "retro" Ohio Scientific font with graphic characters
+(as shown) and also an 8x16 font from the Atari ST.
 
 ![UPduino generating 640x480 8 color display](pics/upduino_video_breadboard.jpg
 "Picture of VGA monitor showing character set")

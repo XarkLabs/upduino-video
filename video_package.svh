@@ -95,7 +95,7 @@ localparam OFFSCREEN_HEIGHT  = TOTAL_HEIGHT - VISIBLE_HEIGHT;
 
 // tile related constants
 localparam FONT_WIDTH        = 8;                               // 8 pixel wide tiles (byte wide font)
-localparam FONT_HEIGHT       = 8;                               // can be 8 or 16 pixel high font
+localparam FONT_HEIGHT       = 8;                               // NOTE: can be 8 or 16 pixel high font
 localparam CHARS_WIDE        = (VISIBLE_WIDTH/FONT_WIDTH);      // default tiled mode width
 localparam CHARS_HIGH        = (VISIBLE_HEIGHT/FONT_HEIGHT);    // default tiled mode height
 

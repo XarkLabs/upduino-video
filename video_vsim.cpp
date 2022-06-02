@@ -2,6 +2,8 @@
 //
 // vim: set et ts=4 sw=4
 //
+// See top-level LICENSE file for license information. (Hint: MIT-0)
+//
 
 #include <signal.h>
 #include <stdio.h>
