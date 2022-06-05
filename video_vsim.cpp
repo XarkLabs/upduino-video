@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 
     if ((logfile = fopen(LOGDIR "video_vsim.log", "w")) == NULL)
     {
-        printf("can't create " LOGDIR "exxample_vsim.log\n");
+        printf("can't create " LOGDIR "video_vsim.log\n");
         exit(EXIT_FAILURE);
     }
 
