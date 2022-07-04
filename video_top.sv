@@ -133,8 +133,8 @@ video_main main(
     .vga_blue_o(vga_blue),
     // control signals
     .end_of_frame_o(end_of_frame),
-    .pf_h_repeat_i(H_REPEAT-1),
-    .pf_v_repeat_i(V_REPEAT-1),
+    .pf_h_repeat_i(3'(H_REPEAT-1)),
+    .pf_v_repeat_i(3'(V_REPEAT-1)),
     .pf_line_len_i(LINE_LEN),
     .display_wr_en_i(display_wr_en),
     .display_wr_addr_i(display_wr_addr),
