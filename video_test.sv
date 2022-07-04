@@ -53,8 +53,8 @@ typedef enum logic [1:0] {
 
 localparam                  MSG_LEN = 20;
 localparam                  MSG_BITS = $clog2(MSG_LEN);
-logic [MSG_BITS:0]          cur_char;       // extra bit for "negative"
-logic [MSG_LEN*8:1]         message = "Hello Upduino VGA!  ";
+logic [MSG_BITS:0]          cur_char;       // extra high-bit to detect underflow
+logic [MSG_LEN*8-1:0]       message = "Hello Upduino VGA!  ";
 disp_addr_t                 addr;
 color_t                     fcolor;
 color_t                     bcolor;
@@ -79,7 +79,7 @@ always_ff @(posedge clk) begin
             wr_en_o     <= 1'b1;
             wr_data_o   <= { 4'(bcolor),                                // back color
                 (fcolor == bcolor) ? 4'(fcolor) + 4'h5 : 4'(fcolor),    // fore color (avoid fore == back)
-                 message[cur_char*8+1+:8] };                            // character
+                 message[cur_char*8+:8] };                              // character
             cur_char    <= cur_char - 1'b1;
             addr        <= addr + 1'b1;
             fcolor      <= fcolor + 1;
