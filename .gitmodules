@@ -1,0 +1,3 @@
+[submodule "svpng"]
+	path = svpng
+	url = https://github.com/miloyip/svpng

@@ -21,6 +21,12 @@ module video_test
     input  wire logic           clk
 );
 
+`ifdef SYNTHESIS
+localparam DELAY = 5 * 60;
+`else
+localparam DELAY = 2;       // fast in simulation
+`endif
+
 initial begin
     bcolor      = 0;
     fcolor      = 1;
@@ -37,7 +43,7 @@ always_ff @(posedge clk) begin
     delay_flag  <= 1'b0;
     if (eof_i) begin
         frame_count <= frame_count + 1'b1;
-        if (frame_count == 5*60) begin
+        if (frame_count == DELAY) begin
             delay_flag  <= 1'b1;
             frame_count <= 0;
         end

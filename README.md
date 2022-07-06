@@ -9,10 +9,25 @@ This example is MIT-0 licensed.  This means you are pretty much free to do as
 you wish with it, including putting your name on it, applying a different
 license, modifying it and/or putting it in your own project.
 
+NOTE: Since I have added the [svpng](https://github.com/miloyip/svpng) PNG
+header library to this project (so the Verilator simulation can save
+simulated screen captures). You need to either clone the repository with:
+
+```shell
+git clone --recursive https://github.com/XarkLabs/upduino-video
+```
+
+or after you have already cloned, initialize the submodule separately with:
+
+```shell
+cd upduino-video
+git submodule update --init
+```
+
 This project supports 640x480, 848x480 (wide screen 480p) and 800x600 VGA
 modes, with an 8x8 or 8x16 character set and a 1x to 8x pixel repeat.
 Shown below is 40x20 text (640x480 with H 2x and V 3x repeat).  There are three
-included example font files, a "hexidecimal" font (showing character number
+included example font files, a "hexadecimal" font (showing character number
 in hex for debugging), a "retro" Ohio Scientific font with graphic characters
 (as shown) and also an 8x16 font from the Atari ST.
 
