@@ -13,24 +13,25 @@
 module video_gen
 (
     // video control signals
-    input  wire hres_t              h_count_i,                      // horizontal pixel counter
-    input  wire logic               v_visible_i,                    // true if scanline is in visible range
-    input  wire logic               end_of_line_i,                  // true on last cycle of line
-    input  wire logic               end_of_frame_i,                 // true on last cycle end of frame
+    input  wire hres_t          h_count_i,                      // horizontal pixel counter
+    input  wire logic           v_visible_i,                    // true if scanline is in visible range
+    input  wire logic           end_of_line_i,                  // true on last cycle of line
+    input  wire logic           end_of_frame_i,                 // true on last cycle end of frame
     // video memories
-    output      logic               dispmem_sel_o,                  // display mem read select
-    output      disp_addr_t         dispmem_addr_o,                 // display mem word address out (16x64K)
-    input  wire disp_data_t         dispmem_data_i,                 // display mem word data in
-    output      logic               fontmem_sel_o,                  // font mem read select
-    output      font_addr_t         fontmem_addr_o,                 // font mem word address out (16x5K)
-    input  wire font_data_t         fontmem_data_i,                 // font mem word data in
+    output      logic           dispmem_sel_o,                  // display mem read select
+    output      disp_addr_t     dispmem_addr_o,                 // display mem word address out (16x64K)
+    input  wire disp_data_t     dispmem_data_i,                 // display mem word data in
+    output      logic           fontmem_sel_o,                  // font mem read select
+    output      font_addr_t     fontmem_addr_o,                 // font mem word address out (16x5K)
+    input  wire font_data_t     fontmem_data_i,                 // font mem word data in
     // video generation control signals
-    input  wire logic  [2:0]        pf_h_repeat_i,                  // horizontal pixel repeat (1x to 8x)
-    input  wire logic  [2:0]        pf_v_repeat_i,                  // vertical pixel repeat (1x to 8x)
-    input  wire disp_addr_t         pf_line_len_i,                  // display mem word address out (16x64K)
-    output      color_t             pf_color_index_o,               // output pixel color value
+    input  wire logic  [2:0]    pf_h_repeat_i,                  // horizontal pixel repeat (1x to 8x)
+    input  wire logic  [2:0]    pf_v_repeat_i,                  // vertical pixel repeat (1x to 8x)
+    input  wire disp_addr_t     pf_line_len_i,                  // display mem word address out (16x64K)
+    output      color_t         pf_color_index_o,               // output pixel color value
     // standard signals
-    input  wire logic clk                                           // pixel clock
+    input  wire logic           reset_i,                        // reset
+    input  wire logic           clk                             // pixel clock
 );
 
 localparam H_MEM_BEGIN      = v::OFFSCREEN_WIDTH-64;                // memory prefetch starts early
@@ -183,103 +184,129 @@ initial begin
 end
 
 always_ff @(posedge clk) begin
-    // fetch FSM clocked process
-    // register fetch combinitorial signals
-    pf_state        <= pf_state_next;
-    mem_fetch       <= mem_fetch_next;
+    if (reset_i) begin
+        scanout             <= 1'b0;
+        mem_fetch           <= 1'b0;
 
-    dispmem_sel     <= dispmem_sel_next;
-    pf_disp_addr    <= pf_disp_addr_next;
-    fontmem_sel     <= fontmem_sel_next;
-    pf_font_addr    <= pf_font_addr_next;
-    pf_disp_word    <= pf_disp_word_next;
-    pf_font_byte    <= pf_font_byte_next;
-    pf_initial_buf  <= pf_initial_buf_next;
-    pf_words_ready  <= pf_words_ready_next;
+        pf_state            <= FETCH_IDLE;
+        pf_h_count          <= '0;
+        pf_v_count          <= '0;
+        pf_tile_x           <= '0;
+        pf_tile_y           <= '0;
+        pf_line_start       <= '0;
+        pf_disp_addr        <= '0;
+        pf_disp_word        <= '0;
+        pf_font_byte        <= '0;
 
+        pf_initial_buf      <= 1'b0;
+        pf_words_ready      <= 1'b0;
 
-    // if display data has been fetched, format into pixel buffer
-    if (pf_words_ready) begin
-        pf_pixels_buf_full <= 1'b1;     // mark buffer full
+        dispmem_sel         <= 1'b0;
+        fontmem_sel         <= 1'b0;
 
-        // expand font byte into 8 pixels of forecolor/backcolor (with v::COLOR_W bits per pixel)
-        pf_pixels_buf  <= {
-            pf_font_byte[7] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
-            pf_font_byte[6] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
-            pf_font_byte[5] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
-            pf_font_byte[4] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
-            pf_font_byte[3] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
-            pf_font_byte[2] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
-            pf_font_byte[1] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
-            pf_font_byte[0] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W] };
-    end
-
-    // if scanning out pixels to the display shift or reload from pixel buffer
-    if (scanout) begin
-        // shift-in next pixel
-        if (pf_h_count != '0) begin
-            pf_h_count              <= pf_h_count - 1'b1;
-        end else begin
-            pf_h_count              <= pf_h_repeat_i;
-            pf_tile_x               <= pf_tile_x + 1'b1;
-
-            if (pf_tile_x == $bits(pf_tile_x)'(v::FONT_WIDTH-1)) begin  // if last column of font tile
-                pf_pixels_buf_full <= 1'b0;
-                pf_pixels   <= pf_pixels_buf;       // next 8 pixels from buffer
-            end else begin
-                pf_pixels   <= { pf_pixels[0+:7*v::COLOR_W], (v::COLOR_W)'(0) };     // shift pixels
-            end
-        end
-    end
-
-    // start of line display fetch
-    if (mem_fetch_h_start) begin                // on line fetch start signal
-        pf_initial_buf          <= 1'b1;
-        pf_pixels_buf_full      <= 1'b0;
-        pf_disp_addr            <= pf_line_start;   // set start address for this line
-
-        pf_pixels[7*v::COLOR_W+:v::COLOR_W] <= '0;  // set default color (in case blanked)
-    end
-
-    // start of scanline scanout
-    if (scanout_start) begin
-        scanout             <= 1'b1;
-        pf_tile_x           <= 3'h0;
-        pf_h_count          <= pf_h_repeat_i;
-        pf_pixels           <= pf_pixels_buf;       // get initial 8 pixels from buffer
         pf_pixels_buf_full  <= 1'b0;
-    end
+        pf_pixels_buf       <= '0;
+        pf_pixels           <= '0;
+    end else begin
 
-    // end of scanline scanout
-    if (scanout_end) begin
-        scanout                             <= 1'b0;
-        pf_pixels[7*v::COLOR_W+:v::COLOR_W] <= '0;
-    end
+        // fetch FSM clocked process
+        // register fetch combinitorial signals
+        pf_state        <= pf_state_next;
+        mem_fetch       <= mem_fetch_next;
 
-    // end of dislpay line
-    if (end_of_line_i) begin
-        scanout         <= 1'b0;                                        // force scanout off
-        pf_disp_addr    <= pf_line_start;                               // addr back to line start (for tile lines, or v repeat)
-        if (pf_v_count != '0) begin                                     // is line repeating?
-            pf_v_count      <= pf_v_count - 1'b1;                       // keep decrementing
-        end else begin
-            pf_v_count      <= pf_v_repeat_i;                           // reset v repeat
-            if (pf_tile_y == $bits(pf_tile_y)'(v::FONT_HEIGHT-1)) begin // is bitmap mode or last line of tile cell?
-                pf_tile_y       <= $bits(pf_tile_y)'(0);                // reset tile cell line
-                pf_line_start   <= pf_line_start + pf_line_len_i;       // calculate next line start address
+        dispmem_sel     <= dispmem_sel_next;
+        pf_disp_addr    <= pf_disp_addr_next;
+        fontmem_sel     <= fontmem_sel_next;
+        pf_font_addr    <= pf_font_addr_next;
+        pf_disp_word    <= pf_disp_word_next;
+        pf_font_byte    <= pf_font_byte_next;
+        pf_initial_buf  <= pf_initial_buf_next;
+        pf_words_ready  <= pf_words_ready_next;
+
+
+        // if display data has been fetched, format into pixel buffer
+        if (pf_words_ready) begin
+            pf_pixels_buf_full <= 1'b1;     // mark buffer full
+
+            // expand font byte into 8 pixels of forecolor/backcolor (with v::COLOR_W bits per pixel)
+            pf_pixels_buf  <= {
+                pf_font_byte[7] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
+                pf_font_byte[6] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
+                pf_font_byte[5] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
+                pf_font_byte[4] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
+                pf_font_byte[3] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
+                pf_font_byte[2] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
+                pf_font_byte[1] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W],
+                pf_font_byte[0] ? pf_disp_word[v::DISP_FORECOLOR+:v::COLOR_W] : pf_disp_word[v::DISP_BACKCOLOR+:v::COLOR_W] };
+        end
+
+        // if scanning out pixels to the display shift or reload from pixel buffer
+        if (scanout) begin
+            // shift-in next pixel
+            if (pf_h_count != '0) begin
+                pf_h_count              <= pf_h_count - 1'b1;
             end else begin
-                pf_tile_y       <= pf_tile_y + 1;                       // next line of tile cell
+                pf_h_count              <= pf_h_repeat_i;
+                pf_tile_x               <= pf_tile_x + 1'b1;
+
+                if (pf_tile_x == $bits(pf_tile_x)'(v::FONT_WIDTH-1)) begin  // if last column of font tile
+                    pf_pixels_buf_full <= 1'b0;
+                    pf_pixels   <= pf_pixels_buf;       // next 8 pixels from buffer
+                end else begin
+                    pf_pixels   <= { pf_pixels[0+:7*v::COLOR_W], (v::COLOR_W)'(0) };     // shift pixels
+                end
             end
         end
-    end
 
-    // end of frame, prepare for next frame
-    if (end_of_frame_i) begin         // is last pixel of frame?
-        pf_disp_addr    <= '0;              // set start of display data
-        pf_line_start   <= '0;              // set line to start of display data
+        // start of line display fetch
+        if (mem_fetch_h_start) begin                // on line fetch start signal
+            pf_initial_buf          <= 1'b1;
+            pf_pixels_buf_full      <= 1'b0;
+            pf_disp_addr            <= pf_line_start;   // set start address for this line
 
-        pf_v_count      <= pf_v_repeat_i;   // reset initial v repeat
-        pf_tile_y       <= '0;
+            pf_pixels[7*v::COLOR_W+:v::COLOR_W] <= '0;  // set default color (in case blanked)
+        end
+
+        // start of scanline scanout
+        if (scanout_start) begin
+            scanout             <= 1'b1;
+            pf_tile_x           <= 3'h0;
+            pf_h_count          <= pf_h_repeat_i;
+            pf_pixels           <= pf_pixels_buf;       // get initial 8 pixels from buffer
+            pf_pixels_buf_full  <= 1'b0;
+        end
+
+        // end of scanline scanout
+        if (scanout_end) begin
+            scanout                             <= 1'b0;
+            pf_pixels[7*v::COLOR_W+:v::COLOR_W] <= '0;
+        end
+
+        // end of dislpay line
+        if (end_of_line_i) begin
+            scanout         <= 1'b0;                                        // force scanout off
+            pf_disp_addr    <= pf_line_start;                               // addr back to line start (for tile lines, or v repeat)
+            if (pf_v_count != '0) begin                                     // is line repeating?
+                pf_v_count      <= pf_v_count - 1'b1;                       // keep decrementing
+            end else begin
+                pf_v_count      <= pf_v_repeat_i;                           // reset v repeat
+                if (pf_tile_y == $bits(pf_tile_y)'(v::FONT_HEIGHT-1)) begin // is bitmap mode or last line of tile cell?
+                    pf_tile_y       <= $bits(pf_tile_y)'(0);                // reset tile cell line
+                    pf_line_start   <= pf_line_start + pf_line_len_i;       // calculate next line start address
+                end else begin
+                    pf_tile_y       <= pf_tile_y + 1;                       // next line of tile cell
+                end
+            end
+        end
+
+        // end of frame, prepare for next frame
+        if (end_of_frame_i) begin         // is last pixel of frame?
+            pf_disp_addr    <= '0;              // set start of display data
+            pf_line_start   <= '0;              // set line to start of display data
+
+            pf_v_count      <= pf_v_repeat_i;   // reset initial v repeat
+            pf_tile_y       <= '0;
+        end
     end
 end
 

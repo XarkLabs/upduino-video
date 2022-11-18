@@ -18,8 +18,10 @@ module video_tb();                // module definition
 /* verilator lint_off UNUSED */
 
 logic       clk;                  // simulated "external clock" for design
+logic       reset;
 logic       vga_hsync;
 logic       vga_vsync;
+logic       vga_dv_de;
 logic       vga_red;
 logic       vga_green;
 logic       vga_blue;
@@ -41,6 +43,7 @@ video_main main(
     // VGA signals
     .vga_hsync_o(vga_hsync),
     .vga_vsync_o(vga_vsync),
+    .vga_dv_de_o(vga_dv_de),
     .vga_red_o(vga_red),
     .vga_green_o(vga_green),
     .vga_blue_o(vga_blue),
@@ -53,6 +56,7 @@ video_main main(
     .display_wr_addr_i(display_wr_addr),
     .display_wr_data_i(display_wr_data),
 
+    .reset_i(reset),
     .clk(clk)
 );
 
@@ -63,6 +67,7 @@ video_test video_test(
     .wr_en_o(display_wr_en),
     .wr_addr_o(display_wr_addr),
     .wr_data_o(display_wr_data),
+    .reset_i(reset),
     .clk(clk)
 );
 
@@ -72,7 +77,9 @@ initial begin
     $dumpvars(0, main);
     $display("Simulation started");
 
+    reset = 1'b1;
     clk = 1'b0; // set initial value for clk
+    #(1_000_000_000/v::PCLK_HZ * 3) reset = 1'b1;
 
     #(5*17ms);
 
@@ -82,7 +89,7 @@ end
 
 // toggle clock at video frequency
 always begin
-    #(1_000_000_000/v::PCLK_HZ) clk = !clk;
+    #(1_000_000_000/v::PCLK_HZ) clk <= !clk;
 end
 
 endmodule

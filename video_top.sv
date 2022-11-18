@@ -75,6 +75,8 @@ always_comb gpio_2      = vga_hsync;
 // clock input is gpio_20 (with OSC jumper shorted or a wire from 12M)
 logic           clk;                // clock for design (output of PLL)
 logic           pll_lock;           // indicates when PLL frequency has locked-on
+logic           reset;
+always_comb     reset = !pll_lock;
 
 `ifdef SYNTHESIS
 /* verilator lint_off PINMISSING */
@@ -103,15 +105,17 @@ assign clk = gpio_20;
 `endif
 
 // suppress unused warning (using signal name starting with "unused")
-logic   unused_lock;
-assign  unused_lock = pll_lock;
+logic   unused_signals;
 
 // video display VGA output signals
 logic                   vga_hsync;
 logic                   vga_vsync;
+logic                   vga_dv_de;
 logic                   vga_red;
 logic                   vga_green;
 logic                   vga_blue;
+
+assign unused_signals = &{ 1'b0, vga_dv_de };
 
 // video control signals
 localparam              H_REPEAT = 2;
@@ -128,6 +132,7 @@ video_main main(
     // VGA signals
     .vga_hsync_o(vga_hsync),
     .vga_vsync_o(vga_vsync),
+    .vga_dv_de_o(vga_dv_de),
     .vga_red_o(vga_red),
     .vga_green_o(vga_green),
     .vga_blue_o(vga_blue),
@@ -140,6 +145,7 @@ video_main main(
     .display_wr_addr_i(display_wr_addr),
     .display_wr_data_i(display_wr_data),
 
+    .reset_i(reset),
     .clk(clk)
 );
 
@@ -150,6 +156,7 @@ video_test video_test(
     .wr_addr_o(display_wr_addr),
     .wr_data_o(display_wr_data),
 
+    .reset_i(reset),
     .clk(clk)
 );
 

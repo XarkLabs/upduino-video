@@ -18,6 +18,7 @@ module video_test
     output      disp_addr_t     wr_addr_o,
     output      disp_data_t     wr_data_o,
     // standard signals
+    input  wire logic           reset_i,
     input  wire logic           clk
 );
 
@@ -40,12 +41,17 @@ end
 logic               delay_flag;
 logic [8:0]         frame_count;
 always_ff @(posedge clk) begin
-    delay_flag  <= 1'b0;
-    if (eof_i) begin
-        frame_count <= frame_count + 1'b1;
-        if (frame_count == DELAY) begin
-            delay_flag  <= 1'b1;
-            frame_count <= 0;
+    if (reset_i) begin
+        frame_count <= 0;
+        delay_flag  <= 1'b0;
+    end else begin
+        delay_flag  <= 1'b0;
+        if (eof_i) begin
+            frame_count <= frame_count + 1'b1;
+            if (frame_count == DELAY) begin
+                delay_flag  <= 1'b1;
+                frame_count <= 0;
+            end
         end
     end
 end

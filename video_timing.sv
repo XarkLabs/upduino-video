@@ -28,6 +28,8 @@ module video_timing (
     output      logic           end_of_frame_o,         // strobe for end of frame (v_count resets)
     output      logic           vsync_o,                // vertical sync output (polarity depends on video mode)
     output      logic           hsync_o,                // horizontal sync output (polarity depends on video mode)
+    output      logic           dv_de_o,                // display enable, true for visible pixel (needed for DV-I)
+    input  wire logic           reset_i,                // system reset
     input  wire logic           clk                     // clock (video pixel clock)
 );
 
@@ -70,13 +72,14 @@ always_comb     end_of_line_o    = end_of_line;
 always_comb     end_of_frame_o   = end_of_frame;
 always_comb     hsync_o          = hsync;
 always_comb     vsync_o          = vsync;
+always_comb     dv_de_o          = dv_de;
 
 // video sync generation via state machine (Thanks tnt & drr - a much more efficient method!)
 always_comb     end_of_line_next = (h_state == H_STATE_VISIBLE) && (h_state_next == H_STATE_PRE_SYNC);
 always_comb     end_of_frame_next= (v_state == V_STATE_POST_SYNC) && (v_state_next == V_STATE_VISIBLE);
-always_comb     hsync_next       = (h_state == H_STATE_SYNC) ? v::H_SYNC_POLARITY : ~v::H_SYNC_POLARITY;
-always_comb     vsync_next       = (v_state == V_STATE_SYNC) ? v::V_SYNC_POLARITY : ~v::V_SYNC_POLARITY;
-always_comb     dv_de_next       = (v_state == V_STATE_VISIBLE) && (h_state_next == H_STATE_VISIBLE);
+always_comb     hsync_next       = (h_state_next == H_STATE_SYNC) ? v::H_SYNC_POLARITY : ~v::H_SYNC_POLARITY;
+always_comb     vsync_next       = (v_state_next == V_STATE_SYNC) ? v::V_SYNC_POLARITY : ~v::V_SYNC_POLARITY;
+always_comb     dv_de_next       = (v_state_next == V_STATE_VISIBLE) && (h_state_next == H_STATE_VISIBLE);
 
 // combinational block for video counters
 always_comb begin
@@ -145,6 +148,20 @@ end
 
 // video pixel generation
 always_ff @(posedge clk) begin
+    if (reset_i) begin
+        h_state             <= H_STATE_PRE_SYNC;
+        v_state             <= V_STATE_VISIBLE;
+        h_count             <= '0;
+        v_count             <= '0;
+
+        end_of_line         <= 1'b0;
+        end_of_frame        <= 1'b0;
+
+        hsync               <= ~v::H_SYNC_POLARITY;
+        vsync               <= ~v::V_SYNC_POLARITY;
+        dv_de               <= 1'b0;
+    end else begin
+    end
     // update registered signals from combinatorial "next" versions
     end_of_line         <= end_of_line_next;
     end_of_frame        <= end_of_frame_next;

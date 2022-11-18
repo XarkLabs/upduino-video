@@ -92,6 +92,7 @@ VERILATOR := verilator
 # (SystemVerilog files, language versions, include directory and error & warning options)
 #VERILATOR_OPTS := -sv --language 1800-2012 -I$(SRCDIR) -Werror-UNUSED -Wall -Wno-DECLFILENAME
 VERILATOR_OPTS := -sv --language 1800-2012 --trace-fst -I$(SRCDIR) -Werror-UNUSED -Wall -Wno-DECLFILENAME
+VERILATOR_CFLAGS := -CFLAGS "-std=c++14 -Wall -Wextra -Werror -fomit-frame-pointer -Wno-deprecated-declarations -Wno-sign-compare -Wno-unused-parameter -Wno-unused-variable -Wno-int-in-bool-context"
 
 # Verillator C++ simulation driver
 CSRC := video_vsim.cpp
@@ -175,12 +176,12 @@ $(OUTDIR)/$(TBOUTNAME): $(SRCDIR)/$(TBTOP).sv $(SRC) $(MAKEFILE_LIST)
 	@echo === Building simulation ===
 	@mkdir -p $(OUTDIR)
 	@rm -f $@
-	$(VERILATOR) $(VERILATOR_OPTS) -Wno-STMTDLY --lint-only $(DEFINES) -v $(TECH_LIB) --top-module $(TBTOP) $(SRCDIR)/$(TBTOP).sv $(SRC)
+	$(VERILATOR) $(VERILATOR_OPTS) --timing -Wno-STMTDLY --lint-only $(DEFINES) -v $(TECH_LIB) --top-module $(TBTOP) $(SRCDIR)/$(TBTOP).sv $(SRC)
 	$(IVERILOG) $(IVERILOG_OPTS) $(DEFINES) -o $@ $(SRCDIR)/$(TBTOP).sv $(SRC)
 
 # use Verilator to build native simulation executable
 obj_dir/V$(VTOP): $(CSRC) $(INC) $(SRCDIR)/$(TOP).sv $(SRC) $(MAKEFILE_LIST)
-	$(VERILATOR) $(VERILATOR_OPTS) --cc --exe --trace  $(DEFINES) -DEXT_CLK $(CFLAGS) $(LDFLAGS) --top-module $(VTOP) $(TECH_LIB) $(SRCDIR)/$(TOP).sv $(SRC) $(CSRC)
+	$(VERILATOR) $(VERILATOR_OPTS) --cc --exe --trace  $(DEFINES) -DEXT_CLK $(VERILATOR_CFLAGS) $(LDFLAGS) --top-module $(VTOP) $(TECH_LIB) $(SRCDIR)/$(TOP).sv $(SRC) $(CSRC)
 	cd obj_dir && make -f V$(VTOP).mk
 
 # synthesize SystemVerilog and create json description

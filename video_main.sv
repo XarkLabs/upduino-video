@@ -18,6 +18,7 @@ module video_main(
     // outputs
     output      logic           vga_hsync_o,        // VGA horizontal sync out
     output      logic           vga_vsync_o,        // VGA vertical sync out
+    output      logic           vga_dv_de_o,        // DVI display enable
     output      logic           vga_red_o,          // red LED output
     output      logic           vga_green_o,        // green LED output
     output      logic           vga_blue_o,         // blue LED output
@@ -31,6 +32,7 @@ module video_main(
     input  wire disp_addr_t     display_wr_addr_i,  // display mem write address
     input  wire disp_data_t     display_wr_data_i,  // display mem write data
     // standard inputs
+    input  wire logic           reset_i,            // reset
     input  wire logic           clk                 // clock for module input
 );
 
@@ -51,7 +53,8 @@ video_timing video_timing(
     .end_of_frame_o(end_of_frame),
     .vsync_o(vga_vsync_o),
     .hsync_o(vga_hsync_o),
-
+    .dv_de_o(vga_dv_de_o),
+    .reset_i(reset_i),
     .clk(clk)
 );
 
@@ -77,6 +80,7 @@ video_gen video_gen(
     .pf_v_repeat_i(pf_v_repeat_i),
     .pf_line_len_i(pf_line_len_i),
     .pf_color_index_o(pf_color_out),
+    .reset_i(reset_i),
     .clk(clk)
 );
 

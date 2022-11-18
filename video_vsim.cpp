@@ -182,7 +182,7 @@ int main(int argc, char **argv)
             {
                 printf("Frame %d completed (@ %" PRIu64 " clock cycles, %" PRIu64 " cycles for frame)\n", frame_num, main_time / 2, main_time / 2 - last_frame_time);
 
-                sprintf(filename, LOGDIR "/upduino-video_f%02d.png", frame_num);
+                snprintf(filename, sizeof(filename), LOGDIR "/upduino-video_f%02d.png", frame_num);
 
                 // save frame here
                 printf("Frame saved as \"%s\" (%d x %d)\n", filename, h_size, v_size);
