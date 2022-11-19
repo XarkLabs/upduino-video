@@ -81,6 +81,7 @@ YOSYS_SYNTH_OPTS := -device u -dsp -abc9 -top $(TOP)
 
 # Invokes yosys-config to find the proper path to the iCE40 simulation library
 TECH_LIB := $(shell $(YOSYS_CONFIG) --datdir/ice40/cells_sim.v)
+VLT_CONFIG := out/ice40_config.vlt
 
 # Verilator tool
 VERILATOR := verilator
@@ -91,7 +92,7 @@ VERILATOR := verilator
 # A nice guide to the warnings, what they mean and how to appese them is https://verilator.org/guide/latest/warnings.html
 # (SystemVerilog files, language versions, include directory and error & warning options)
 #VERILATOR_OPTS := -sv --language 1800-2012 -I$(SRCDIR) -Werror-UNUSED -Wall -Wno-DECLFILENAME
-VERILATOR_OPTS := -sv --language 1800-2012 --trace-fst -I$(SRCDIR) -Werror-UNUSED -Wall -Wno-DECLFILENAME
+VERILATOR_OPTS := -sv --language 1800-2012 --trace-fst -I$(SRCDIR) -v $(TECH_LIB) $(VLT_CONFIG) -Werror-UNUSED -Wall -Wno-DECLFILENAME
 VERILATOR_CFLAGS := -CFLAGS "-std=c++14 -Wall -Wextra -Werror -fomit-frame-pointer -Wno-deprecated-declarations -Wno-sign-compare -Wno-unused-parameter -Wno-unused-variable -Wno-int-in-bool-context"
 
 # Verillator C++ simulation driver
@@ -135,16 +136,16 @@ info:
 all: isim vsim bin
 
 # synthesize FPGA bitstream for design
-bin: $(OUTDIR)/$(OUTNAME).bin
+bin: $(VLT_CONFIG) $(OUTDIR)/$(OUTNAME).bin
 	@echo === Synthesizing done, use \"make prog\" to program FPGA ===
 
 # program UPduino FPGA via USB (may need udev rules or sudo on Linux)
-prog: $(OUTDIR)/$(OUTNAME).bin
+prog: $(VLT_CONFIG) $(OUTDIR)/$(OUTNAME).bin
 	@echo === Programming UPduino FPGA via USB ===
 	$(ICEPROG) -d i:0x0403:0x6014 $(OUTDIR)/$(OUTNAME).bin
 
 # run Yosys with "noflatten", which will produce a resource count per module
-count: $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(FONTFILES) $(MAKEFILE_LIST)
+count: $(VLT_CONFIG) $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(FONTFILES) $(MAKEFILE_LIST)
 	@echo === Couting Design Resources Used ===
 	@mkdir -p $(LOGS)
 	$(YOSYS) $(YOSYS_OPTS) -l $(LOGS)/$(OUTNAME)_yosys_count.log -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -noflatten'
@@ -172,17 +173,26 @@ vrun: obj_dir/V$(VTOP) $(MAKEFILE_LIST)
 	obj_dir/V$(VTOP) $(VRUN_TESTDATA)
 
 # use Icarus Verilog to build vvp simulation executable
-$(OUTDIR)/$(TBOUTNAME): $(SRCDIR)/$(TBTOP).sv $(SRC) $(MAKEFILE_LIST)
+$(OUTDIR)/$(TBOUTNAME): $(VLT_CONFIG) $(SRCDIR)/$(TBTOP).sv $(SRC) $(MAKEFILE_LIST)
 	@echo === Building simulation ===
 	@mkdir -p $(OUTDIR)
 	@rm -f $@
-	$(VERILATOR) $(VERILATOR_OPTS) --timing -Wno-STMTDLY --lint-only $(DEFINES) -v $(TECH_LIB) --top-module $(TBTOP) $(SRCDIR)/$(TBTOP).sv $(SRC)
+	$(VERILATOR) $(VERILATOR_OPTS) --timing -Wno-STMTDLY --lint-only $(DEFINES) --top-module $(TBTOP) $(SRCDIR)/$(TBTOP).sv $(SRC)
 	$(IVERILOG) $(IVERILOG_OPTS) $(DEFINES) -o $@ $(SRCDIR)/$(TBTOP).sv $(SRC)
 
 # use Verilator to build native simulation executable
-obj_dir/V$(VTOP): $(CSRC) $(INC) $(SRCDIR)/$(TOP).sv $(SRC) $(MAKEFILE_LIST)
-	$(VERILATOR) $(VERILATOR_OPTS) --cc --exe --trace  $(DEFINES) -DEXT_CLK $(VERILATOR_CFLAGS) $(LDFLAGS) --top-module $(VTOP) $(TECH_LIB) $(SRCDIR)/$(TOP).sv $(SRC) $(CSRC)
+obj_dir/V$(VTOP): $(VLT_CONFIG) $(CSRC) $(INC) $(SRCDIR)/$(TOP).sv $(SRC) $(MAKEFILE_LIST)
+	$(VERILATOR) $(VERILATOR_OPTS) --cc --exe --trace  $(DEFINES) -DEXT_CLK $(VERILATOR_CFLAGS) $(LDFLAGS) --top-module $(VTOP) $(SRCDIR)/$(TOP).sv $(SRC) $(CSRC)
 	cd obj_dir && make -f V$(VTOP).mk
+
+# disable UNUSED and UNDRIVEN warnings in cells_sim.v library for Verilator lint
+$(VLT_CONFIG):
+	@mkdir -p $(OUTDIR)
+	@echo >$(VLT_CONFIG)
+	@echo >>$(VLT_CONFIG) \`verilator_config
+	@echo >>$(VLT_CONFIG) lint_off -rule WIDTH  -file \"$(TECH_LIB)\"
+	@echo >>$(VLT_CONFIG) lint_off -rule UNUSED  -file \"$(TECH_LIB)\"
+	@echo >>$(VLT_CONFIG) lint_off -rule UNDRIVEN  -file \"$(TECH_LIB)\"
 
 # synthesize SystemVerilog and create json description
 $(OUTDIR)/$(OUTNAME).json: $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(MAKEFILE_LIST)
@@ -190,7 +200,7 @@ $(OUTDIR)/$(OUTNAME).json: $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(MAKEFILE_LIST)
 	@rm -f $@
 	@mkdir -p $(OUTDIR)
 	@mkdir -p $(LOGS)
-	$(VERILATOR) $(VERILATOR_OPTS) --lint-only $(DEFINES) --top-module $(TOP) $(TECH_LIB) $(SRCDIR)/$(TOP).sv $(SRC) 2>&1 | tee $(LOGS)/$(OUTNAME)_verilator.log
+	$(VERILATOR) $(VERILATOR_OPTS) --lint-only $(DEFINES) --top-module $(TOP) $(SRCDIR)/$(TOP).sv $(SRC) 2>&1 | tee $(LOGS)/$(OUTNAME)_verilator.log
 	$(YOSYS) $(YOSYS_OPTS) -l $(LOGS)/$(OUTNAME)_yosys.log -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -json $@'
 
 # make BIN bitstream from JSON description and device parameters
