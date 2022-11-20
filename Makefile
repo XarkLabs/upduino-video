@@ -20,6 +20,9 @@ SRCDIR := .
 # output directory
 OUTDIR := out
 
+# log output directory for tools (spammy, but useful detailed info)
+LOGS := logs
+
 # Name of the "top" module for design (in ".sv" file with same name)
 TOP := video_top
 
@@ -73,7 +76,7 @@ endif
 # so they only appear in log file with -w, e.g. adding:  -w "tri-state"
 # would suppress the warning shown when you use 1'bZ: "Yosys has only limited
 # support for tri-state logic at the moment.")
-YOSYS_OPTS := -e "no driver"
+YOSYS_OPTS := -q -e "no driver"
 
 # Yosys synthesis options
 # ("ultraplus" device, enable DSP inferrence, ABC9 logic optimization and explicitly set top module name)
@@ -113,9 +116,6 @@ NEXTPNR_OPTS := --placer heap
 # NOTE: Options that can often produce a more "optimal" size/speed for design, but slower:
 #       NEXTPNR_OPTS := --promote-logic --opt-timing --placer heap
 
-# log output directory for tools (spammy, but useful detailed info)
-LOGS := logs
-
 # SystemVerilog preprocessor definitions common to all modules (this prevents spurious warnings in TECH_LIB files)
 DEFINES := -DNO_ICE40_DEFAULT_ASSIGNMENTS
 # pass video mode as define
@@ -148,7 +148,7 @@ prog: $(VLT_CONFIG) $(OUTDIR)/$(OUTNAME).bin
 count: $(VLT_CONFIG) $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(FONTFILES) $(MAKEFILE_LIST)
 	@echo === Couting Design Resources Used ===
 	@mkdir -p $(LOGS)
-	$(YOSYS) $(YOSYS_OPTS) -l $(LOGS)/$(OUTNAME)_yosys_count.log -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -noflatten'
+	$(YOSYS) -l $(LOGS)/$(OUTNAME)_yosys_count.log $(YOSYS_OPTS) -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -noflatten'
 	@sed -n '/Printing statistics/,/Executing CHECK pass/p' $(LOGS)/$(OUTNAME)_yosys_count.log | sed '$$d'
 	@echo === See $(LOGS)/$(OUTNAME)_yosys_count.log for resource use details ===
 
@@ -201,7 +201,7 @@ $(OUTDIR)/$(OUTNAME).json: $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(MAKEFILE_LIST)
 	@mkdir -p $(OUTDIR)
 	@mkdir -p $(LOGS)
 	$(VERILATOR) $(VERILATOR_OPTS) --lint-only $(DEFINES) --top-module $(TOP) $(SRCDIR)/$(TOP).sv $(SRC) 2>&1 | tee $(LOGS)/$(OUTNAME)_verilator.log
-	$(YOSYS) $(YOSYS_OPTS) -l $(LOGS)/$(OUTNAME)_yosys.log -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -json $@'
+	$(YOSYS) -l $(LOGS)/$(OUTNAME)_yosys.log $(YOSYS_OPTS) -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -json $@'
 
 # make BIN bitstream from JSON description and device parameters
 $(OUTDIR)/$(OUTNAME).bin: $(OUTDIR)/$(OUTNAME).json $(PIN_DEF) $(MAKEFILE_LIST)

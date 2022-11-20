@@ -74,34 +74,72 @@ always_comb gpio_2      = vga_hsync;
 // PLL to derive proper video frequency from 12MHz oscillator
 // clock input is gpio_20 (with OSC jumper shorted or a wire from 12M)
 logic           clk;                // clock for design (output of PLL)
+logic           clk_cpu;            // clock for design (output of PLL)
 logic           pll_lock;           // indicates when PLL frequency has locked-on
-logic           reset;
-always_comb     reset = !pll_lock;
+logic           reset;              // reset signal
 
-`ifdef SYNTHESIS
-/* verilator lint_off PINMISSING */
-SB_PLL40_CORE
-    #(
-        .DIVR(v::PLL_DIVR),        // DIVR from video_package.svh
-        .DIVF(v::PLL_DIVF),        // DIVF from video_package.svh
-        .DIVQ(v::PLL_DIVQ),        // DIVQ from video_package.svh
-        .FEEDBACK_PATH("SIMPLE"),
-        .FILTER_RANGE(3'b001),
-        .PLLOUT_SELECT("GENCLK")
-    )
-    pll_inst (
-        .LOCK(pll_lock),        // signal indicates PLL lock (useful as a reset)
-        .RESETB(1'b1),
-        .BYPASS(1'b0),
-        .REFERENCECLK(gpio_20), // input reference clock
-        .PLLOUTGLOBAL(clk)     // PLL output clock (via global buffer)
-    );
-/* verilator lint_on PINMISSING */
+`ifndef SYNTHESIS   // simulation
 
-`else
 // for simulation use 1:1 input clock (and testbench can simulate proper frequency)
 assign pll_lock = 1'b1;
 assign clk = gpio_20;
+always_ff @(posedge clk) clk_cpu <= ~clk_cpu;
+
+`else               // synthesis
+
+`define USE_DUAL_PLL    // dual output PLL example (runs test module at 1/2 VGA clock speed)
+
+/* verilator lint_off PINMISSING */
+`ifdef USE_DUAL_PLL     // dual output PLL (one clock half speed, but in phase)
+
+initial begin
+    $display("NOTE: Using dual PLL");
+end
+
+SB_PLL40_2F_CORE #(
+    .DIVR(v::PLL_DIVR),         // DIVR from video_package.svh
+    .DIVF(v::PLL_DIVF),         // DIVF from video_package.svh
+    .DIVQ(v::PLL_DIVQ),         // DIVQ from video_package.svh
+    .FEEDBACK_PATH("SIMPLE"),
+    .FILTER_RANGE(3'b001),
+    .PLLOUT_SELECT_PORTA("GENCLK_HALF"),
+    .PLLOUT_SELECT_PORTB("GENCLK")
+) pll_inst (
+    .LOCK(pll_lock),            // signal indicates PLL lock (useful as a reset)
+    .RESETB(1'b1),
+    .BYPASS(1'b0),
+    .REFERENCECLK(gpio_20),     // input reference clock
+    .PLLOUTGLOBALA(clk_cpu),    // PLL output half speed clock (via global buffer)
+    .PLLOUTGLOBALB(clk)         // PLL output clock (via global buffer)
+);
+
+`else   // single output PLL
+
+initial begin
+    $display("NOTE: Using single PLL");
+end
+
+SB_PLL40_CORE #(
+    .DIVR(v::PLL_DIVR),         // DIVR from video_package.svh
+    .DIVF(v::PLL_DIVF),         // DIVF from video_package.svh
+    .DIVQ(v::PLL_DIVQ),         // DIVQ from video_package.svh
+    .FEEDBACK_PATH("SIMPLE"),
+    .FILTER_RANGE(3'b001),
+    .PLLOUT_SELECT("GENCLK")
+)
+pll_inst (
+    .LOCK(pll_lock),            // signal indicates PLL lock (useful as a reset)
+    .RESETB(1'b1),
+    .BYPASS(1'b0),
+    .REFERENCECLK(gpio_20),     // input reference clock
+    .PLLOUTGLOBAL(clk)          // PLL output clock (via global buffer)
+);
+
+assign clk_cpu = clk;           // use same clock for cpu_clk
+
+`endif
+/* verilator lint_on PINMISSING */
+
 `endif
 
 // suppress unused warning (using signal name starting with "unused")
@@ -116,6 +154,16 @@ logic                   vga_green;
 logic                   vga_blue;
 
 assign unused_signals = &{ 1'b0, vga_dv_de };
+
+// reset control (hold reset until PLL locked)
+initial reset = 1'b1;   // start in reset
+always_ff @(posedge clk) begin
+    if (!pll_lock) begin
+        reset       <= 1'b1;
+    end else begin
+        reset       <= 1'b0;
+    end
+end
 
 // video control signals
 localparam              H_REPEAT = 2;
@@ -157,7 +205,7 @@ video_test video_test(
     .wr_data_o(display_wr_data),
 
     .reset_i(reset),
-    .clk(clk)
+    .clk(clk_cpu)
 );
 
 endmodule

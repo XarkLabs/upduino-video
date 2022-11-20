@@ -28,21 +28,13 @@ localparam DELAY = 5 * 60;
 localparam DELAY = 2;       // fast in simulation
 `endif
 
-initial begin
-    bcolor      = 0;
-    fcolor      = 1;
-    frame_count = 1;
-    cur_char    = 0;
-    addr        = 0;
-    test_state  = TEST_IDLE;
-end
 
 // frame counter (for delay)
 logic               delay_flag;
 logic [8:0]         frame_count;
 always_ff @(posedge clk) begin
     if (reset_i) begin
-        frame_count <= 0;
+        frame_count <= '0;
         delay_flag  <= 1'b0;
     end else begin
         delay_flag  <= 1'b0;
@@ -50,7 +42,7 @@ always_ff @(posedge clk) begin
             frame_count <= frame_count + 1'b1;
             if (frame_count == DELAY) begin
                 delay_flag  <= 1'b1;
-                frame_count <= 0;
+                frame_count <= '0;
             end
         end
     end
@@ -74,41 +66,50 @@ color_t                     bcolor;
 logic [1:0]                 test_state;
 
 always_ff @(posedge clk) begin
-
-    wr_en_o     <= 1'b0;
-    wr_addr_o   <= addr;
-
-    case (test_state)
-    TEST_IDLE: begin
-        if (delay_flag) begin
-            cur_char    <= MSG_LEN-1;
-            test_state  <= TEST_PRINT;
-        end
-    end
-    TEST_PRINT: begin
-        // if high bit not set (hasn't under-flowed)
-        if (!cur_char[MSG_BITS]) begin
-            wr_en_o     <= 1'b1;
-            wr_data_o   <= { 4'(bcolor),                                // back color
-                (fcolor == bcolor) ? 4'(fcolor) + 4'h5 : 4'(fcolor),    // fore color (avoid fore == back)
-                 message[cur_char*8+:8] };                              // character
-            cur_char    <= cur_char - 1'b1;
-            addr        <= addr + 1'b1;
-            fcolor      <= fcolor + 1;
-        end else begin
-            test_state  <= TEST_LOOP;
-        end
-    end
-    TEST_LOOP: begin
-        bcolor      <= bcolor + 1;
-        fcolor      <= bcolor + 3;
+    if (reset_i) begin
+        wr_en_o     <= 1'b0;
+        wr_addr_o   <= '0;
         test_state  <= TEST_IDLE;
-    end
-    default: begin
-        test_state  <= TEST_IDLE;
-    end
 
-    endcase
+        cur_char    <= '0;
+        bcolor      <= '0;
+        fcolor      <= '0;
+        addr        <= '0;
+    end else begin
+        wr_en_o     <= 1'b0;
+        wr_addr_o   <= addr;
+
+        case (test_state)
+            TEST_IDLE: begin
+                if (delay_flag) begin
+                    cur_char    <= MSG_LEN-1;
+                    test_state  <= TEST_PRINT;
+                end
+            end
+            TEST_PRINT: begin
+                // if high bit not set (hasn't under-flowed)
+                if (!cur_char[MSG_BITS]) begin
+                    wr_en_o     <= 1'b1;
+                    wr_data_o   <= { 4'(bcolor),                                // back color
+                        (fcolor == bcolor) ? 4'(fcolor) + 4'h5 : 4'(fcolor),    // fore color (avoid fore == back)
+                        message[cur_char*8+:8] };                              // character
+                    cur_char    <= cur_char - 1'b1;
+                    addr        <= addr + 1'b1;
+                    fcolor      <= fcolor + 1;
+                end else begin
+                    test_state  <= TEST_LOOP;
+                end
+            end
+            TEST_LOOP: begin
+                bcolor      <= bcolor + 1;
+                fcolor      <= bcolor + 3;
+                test_state  <= TEST_IDLE;
+            end
+            default: begin
+                test_state  <= TEST_IDLE;
+            end
+        endcase
+    end
 end
 
 endmodule

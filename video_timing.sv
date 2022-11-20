@@ -131,50 +131,35 @@ always_comb begin
     endcase
 end
 
-// set initial signal values
-initial begin
-    h_state             = H_STATE_PRE_SYNC;
-    v_state             = V_STATE_VISIBLE;
-    h_count             = '0;
-    v_count             = '0;
-
-    end_of_line         = 1'b0;
-    end_of_frame        = 1'b0;
-
-    hsync               = ~v::H_SYNC_POLARITY;
-    vsync               = ~v::V_SYNC_POLARITY;
-    dv_de               = 1'b0;
-end
-
 // video pixel generation
 always_ff @(posedge clk) begin
     if (reset_i) begin
+        end_of_line         <= 1'b0;
+        end_of_frame        <= 1'b0;
+
         h_state             <= H_STATE_PRE_SYNC;
         v_state             <= V_STATE_VISIBLE;
         h_count             <= '0;
         v_count             <= '0;
 
-        end_of_line         <= 1'b0;
-        end_of_frame        <= 1'b0;
-
         hsync               <= ~v::H_SYNC_POLARITY;
         vsync               <= ~v::V_SYNC_POLARITY;
         dv_de               <= 1'b0;
     end else begin
+        // update registered signals from combinatorial "next" versions
+        end_of_line         <= end_of_line_next;
+        end_of_frame        <= end_of_frame_next;
+
+        h_state             <= h_state_next;
+        v_state             <= v_state_next;
+        h_count             <= h_count_next;
+        v_count             <= v_count_next;
+
+        // set other video output signals
+        hsync               <= hsync_next;
+        vsync               <= vsync_next;
+        dv_de               <= dv_de_next;
     end
-    // update registered signals from combinatorial "next" versions
-    end_of_line         <= end_of_line_next;
-    end_of_frame        <= end_of_frame_next;
-
-    h_state             <= h_state_next;
-    v_state             <= v_state_next;
-    h_count             <= h_count_next;
-    v_count             <= v_count_next;
-
-    // set other video output signals
-    hsync               <= hsync_next;
-    vsync               <= vsync_next;
-    dv_de               <= dv_de_next;
 end
 
 endmodule

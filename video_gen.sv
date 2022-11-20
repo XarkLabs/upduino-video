@@ -157,32 +157,6 @@ end
 // output current pixel value
 assign  pf_color_index_o    = pf_pixels[7*v::COLOR_W+:v::COLOR_W];
 
-// initialize signal defaults
-initial begin
-    scanout             = 1'b0;
-    mem_fetch           = 1'b0;
-
-    pf_state            = FETCH_IDLE;
-    pf_h_count          = '0;
-    pf_v_count          = '0;
-    pf_tile_x           = '0;
-    pf_tile_y           = '0;
-    pf_line_start       = '0;
-    pf_disp_addr        = '0;
-    pf_disp_word        = '0;
-    pf_font_byte        = '0;
-
-    pf_initial_buf      = 1'b0;
-    pf_words_ready      = 1'b0;
-
-    dispmem_sel         = 1'b0;
-    fontmem_sel         = 1'b0;
-
-    pf_pixels_buf_full  = 1'b0;
-    pf_pixels_buf       = '0;
-    pf_pixels           = '0;
-end
-
 always_ff @(posedge clk) begin
     if (reset_i) begin
         scanout             <= 1'b0;
