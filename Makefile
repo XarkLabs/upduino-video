@@ -95,7 +95,9 @@ VERILATOR := verilator
 # A nice guide to the warnings, what they mean and how to appese them is https://verilator.org/guide/latest/warnings.html
 # (SystemVerilog files, language versions, include directory and error & warning options)
 #VERILATOR_OPTS := -sv --language 1800-2012 -I$(SRCDIR) -Werror-UNUSED -Wall -Wno-DECLFILENAME
-VERILATOR_OPTS := -sv --language 1800-2012 --trace-fst -I$(SRCDIR) -v $(TECH_LIB) $(VLT_CONFIG) -Werror-UNUSED -Wall -Wno-DECLFILENAME
+VERILATOR_OPTS := -sv --language 1800-2012 --trace-fst --timing -I$(SRCDIR) -v $(TECH_LIB) $(VLT_CONFIG) -Werror-UNUSED -Wall -Wno-DECLFILENAME
+# Note: Using -Os seems to provide the fastest compile+run simulation iteration
+# time
 VERILATOR_CFLAGS := -CFLAGS "-std=c++14 -Wall -Wextra -Werror -fomit-frame-pointer -Wno-deprecated-declarations -Wno-sign-compare -Wno-unused-parameter -Wno-unused-variable -Wno-int-in-bool-context"
 
 # Verillator C++ simulation driver
@@ -111,10 +113,8 @@ IVERILOG_OPTS := -g2012 -I$(SRCDIR) -Wall -Wno-portbind -l$(TECH_LIB)
 # nextpnr iCE40 tool
 NEXTPNR := nextpnr-ice40
 # nextpnr-ice40 options
-# (use "heap" placer)
-NEXTPNR_OPTS := --placer heap
-# NOTE: Options that can often produce a more "optimal" size/speed for design, but slower:
-#       NEXTPNR_OPTS := --promote-logic --opt-timing --placer heap
+# (promote logic to buffer, optimize for timing, use "heap" placer)
+NEXTPNR_OPTS := --promote-logic --opt-timing --placer heap
 
 # SystemVerilog preprocessor definitions common to all modules (this prevents spurious warnings in TECH_LIB files)
 DEFINES := -DNO_ICE40_DEFAULT_ASSIGNMENTS
@@ -124,7 +124,7 @@ DEFINES += -D$(VIDEO_MODE)
 # show info on make targets
 info:
 	@echo "make targets:"
-	@echo "    make all        - synthesize FPGA bitstream and build simulation for design"
+	@echo "    make all        - synthesize FPGA bitstream and build simulations for design"
 	@echo "    make bin        - synthesize UPduino bitstream for design"
 	@echo "    make prog       - program UPduino bitstream via USB"
 	@echo "    make count      - show design resource usage counts"
@@ -133,7 +133,7 @@ info:
 	@echo "    make clean      - clean most files that can be rebuilt"
 
 # defult target is to make FPGA bitstream for design
-all: isim vsim bin
+all: isim vsim count bin
 
 # synthesize FPGA bitstream for design
 bin: $(VLT_CONFIG) $(OUTDIR)/$(OUTNAME).bin
@@ -177,7 +177,7 @@ $(OUTDIR)/$(TBOUTNAME): $(VLT_CONFIG) $(SRCDIR)/$(TBTOP).sv $(SRC) $(MAKEFILE_LI
 	@echo === Building simulation ===
 	@mkdir -p $(OUTDIR)
 	@rm -f $@
-	$(VERILATOR) $(VERILATOR_OPTS) --timing -Wno-STMTDLY --lint-only $(DEFINES) --top-module $(TBTOP) $(SRCDIR)/$(TBTOP).sv $(SRC)
+	$(VERILATOR) $(VERILATOR_OPTS) --lint-only $(DEFINES) --top-module $(TBTOP) $(SRCDIR)/$(TBTOP).sv $(SRC)
 	$(IVERILOG) $(IVERILOG_OPTS) $(DEFINES) -o $@ $(SRCDIR)/$(TBTOP).sv $(SRC)
 
 # use Verilator to build native simulation executable
@@ -201,7 +201,7 @@ $(OUTDIR)/$(OUTNAME).json: $(SRCDIR)/$(TOP).sv $(SRC) $(INC) $(MAKEFILE_LIST)
 	@mkdir -p $(OUTDIR)
 	@mkdir -p $(LOGS)
 	$(VERILATOR) $(VERILATOR_OPTS) --lint-only $(DEFINES) --top-module $(TOP) $(SRCDIR)/$(TOP).sv $(SRC) 2>&1 | tee $(LOGS)/$(OUTNAME)_verilator.log
-	$(YOSYS) -l $(LOGS)/$(OUTNAME)_yosys.log $(YOSYS_OPTS) -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -json $@'
+	$(YOSYS) $(YOSYS_OPTS) -l $(LOGS)/$(OUTNAME)_yosys.log -q -p 'verilog_defines $(DEFINES) ; read_verilog -I$(SRCDIR) -sv $(SRCDIR)/$(TOP).sv $(SRC) ; synth_ice40 $(YOSYS_SYNTH_OPTS) -json $@'
 
 # make BIN bitstream from JSON description and device parameters
 $(OUTDIR)/$(OUTNAME).bin: $(OUTDIR)/$(OUTNAME).json $(PIN_DEF) $(MAKEFILE_LIST)
