@@ -168,7 +168,7 @@ end
 // video control signals
 localparam              H_REPEAT = 2;
 localparam              V_REPEAT = 3;
-localparam disp_addr_t  LINE_LEN = ((v::VISIBLE_WIDTH + v::FONT_WIDTH - 1) / H_REPEAT) / v::FONT_WIDTH;
+localparam              LINE_LEN = ((v::VISIBLE_WIDTH + v::FONT_WIDTH - 1) / H_REPEAT) / v::FONT_WIDTH;
 
 logic                   end_of_frame;
 logic                   display_wr_en;
